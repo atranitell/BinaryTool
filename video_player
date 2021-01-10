@@ -1,0 +1,15 @@
+#!/Users/kj/miniconda3/envs/dev/bin/python
+
+import cv2
+import sys
+
+cap = cv2.VideoCapture(sys.argv[1])
+succ, frame = cap.read()
+count = 0
+while succ:
+  cv2.waitKey(30)
+  cv2.imshow('win', frame)
+  succ, frame = cap.read()
+  cv2.imwrite('%d.png' % count, frame)
+  count += 1
+cap.release()

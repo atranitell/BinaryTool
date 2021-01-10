@@ -1,0 +1,123 @@
+#!/Users/kj/miniconda3/envs/dev/bin/python
+
+import requests
+import argparse
+import os
+import re
+import json
+import time
+from urllib import request
+import bs4
+import wget
+import sys
+
+
+URL_PROFILE = 'https://www.zhihu.com/people/{}'
+URL_ANSWER = 'https://www.zhihu.com/people/{}/answers'
+URL_QUESTION = 'https://www.zhihu.com/question/{}'
+
+
+def GetSoupAndContentFromURL(url):
+  print('[INFO] Parsing URL:', url)
+  content = request.urlopen(url)
+  content = content.read().decode('utf-8')
+  soup = bs4.BeautifulSoup(content, 'html.parser')
+  return soup, content
+
+
+def FetchProfileInfo(_id):
+  if not os.path.exists(_id):
+    os.makedirs(_id)
+
+  soup, content = GetSoupAndContentFromURL(URL_ANSWER.format(_id))
+  info = json.loads(soup.find_all('script')[2].string)
+  entities = info['initialState']['entities']
+  profile = entities['users'][_id]
+
+  with open(_id + '/' + _id + '.txt', 'w') as fw:
+    for k, v in profile.items():
+      fw.write('{}: {}\n'.format(k, v))
+
+  print('[INFO] name:', profile['name'])
+  print('[INFO] gender:', 'female' if profile['gender'] == 0 else 'male')
+  print('[INFO] headline:', profile['headline'])
+  print('[INFO] answers:', profile['answerCount'])
+  return profile
+
+
+def DownloadAnswerPic(user_id, ans_url, ans_id):
+  soup, content = GetSoupAndContentFromURL(ans_url)
+  for v in set(re.findall('data-original="(.*?)\?source', content)):
+    img_name = os.path.basename(v)
+    print('[INFO] Downloading image', v, img_name)
+    with open(user_id + '/' + img_name, 'wb') as fw:
+      try:
+        fw.write(request.urlopen(v, timeout=3).read())
+      except:
+        pass
+
+
+def FetchProfileAnswers(_id):
+  profile = FetchProfileInfo(_id)
+  pageSize = int((profile['answerCount'] + 20) / 20) + 1
+  for i in range(1, pageSize):
+    url = URL_ANSWER.format(_id) + '?page=%d' % i
+    soup, content = GetSoupAndContentFromURL(url)  # nopep8
+    info = json.loads(soup.find_all('script')[2].string)
+    print('[INFO] Process answer page {}/{} with url: {}'.format(i, pageSize, url))  # nopep8
+    for k, v in info['initialState']['entities']['answers'].items():
+      question_id = v['question']['id']
+      answer_id = v['id']
+      answer_url = 'https://www.zhihu.com/question/{}/answer/{}'.format(question_id, answer_id)  # nopep8
+      DownloadAnswerPic(_id, answer_url, answer_id)
+
+
+def FetchUsersOnAnswer(ans_id):
+  headers = {
+      'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+      'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36',
+  }
+  offset = 0
+  while True:
+    try:
+      if offset == 0:
+        url = 'https://www.zhihu.com/api/v4/questions/{}/answers?include=data%5B*%5D.is_normal%2Cadmin_closed_comment%2Creward_info%2Cis_collapsed%2Cannotation_action%2Cannotation_detail%2Ccollapse_reason%2Cis_sticky%2Ccollapsed_by%2Csuggest_edit%2Ccomment_count%2Ccan_comment%2Ccontent%2Ceditable_content%2Cvoteup_count%2Creshipment_settings%2Ccomment_permission%2Ccreated_time%2Cupdated_time%2Creview_info%2Crelevant_info%2Cquestion%2Cexcerpt%2Crelationship.is_authorized%2Cis_author%2Cvoting%2Cis_thanked%2Cis_nothelp%2Cis_labeled%2Cis_recognized%2Cpaid_info%2Cpaid_info_content%3Bdata%5B*%5D.mark_infos%5B*%5D.url%3Bdata%5B*%5D.author.follower_count%2Cbadge%5B*%5D.topics%3Bsettings.table_of_content.enabled%3B&offset&limit=10&sort_by=default&platform=desktop'.format(
+            ans_id)
+      else:
+        url = 'https://www.zhihu.com/api/v4/questions/{}/answers?include=data%5B*%5D.is_normal%2Cadmin_closed_comment%2Creward_info%2Cis_collapsed%2Cannotation_action%2Cannotation_detail%2Ccollapse_reason%2Cis_sticky%2Ccollapsed_by%2Csuggest_edit%2Ccomment_count%2Ccan_comment%2Ccontent%2Ceditable_content%2Cvoteup_count%2Creshipment_settings%2Ccomment_permission%2Ccreated_time%2Cupdated_time%2Creview_info%2Crelevant_info%2Cquestion%2Cexcerpt%2Crelationship.is_authorized%2Cis_author%2Cvoting%2Cis_thanked%2Cis_nothelp%2Cis_labeled%2Cis_recognized%2Cpaid_info%2Cpaid_info_content%3Bdata%5B*%5D.mark_infos%5B*%5D.url%3Bdata%5B*%5D.author.follower_count%2Cbadge%5B*%5D.topics%3Bsettings.table_of_content.enabled%3B&offset={}&limit=10&sort_by=default&platform=desktop'.format(
+            ans_id, offset)
+      offset += 10
+      r = requests.get(url, headers=headers)
+      answer_content = json.loads(r.text)
+      if not answer_content['data']:
+        break
+      for ans in answer_content['data']:
+        user_id = ans['author']['url_token']
+        if user_id:
+          if os.path.exists(user_id):
+            continue
+          FetchProfileAnswers(user_id)
+    except:
+      pass
+
+
+# FetchProfileAnswers('da-xing-ji-jie-15')
+# FetchUsersOnAnswer('30061914')
+
+
+if __name__ == "__main__":
+  print(sys.argv)
+
+  if len(sys.argv) != 3:
+    print('zhihu question|profile id')
+    exit(0)
+
+  mode = sys.argv[1]
+  idx = sys.argv[2]
+
+  if mode == 'question':
+    FetchUsersOnAnswer(idx)
+  elif mode == 'profile':
+    FetchProfileAnswers(idx)
+  else:
+    raise NotImplementedError(mode)

@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Auto build tools
+# Author: Kai JIN
+# Update: 2020/03/12
+# Mail: <jinkai@bigo.sg>
+
+COMMIT=$(date '+%Y.%m.%d-%H.%M.%S')
+
+echo "=> Synchronize Snippets"
+pushd /Users/kj/KJ/snippets
+git pull
+git add .
+git commit -m "snippets daily $COMMIT"
+git push
+popd
+
+echo "=> Synchronize Research"
+pushd /Users/kj/KJ/research
+git pull
+git add .
+git commit -m "research daily $COMMIT"
+git push
+popd
+
+echo "=> Synchronize BinaryTool"
+pushd /Users/kj/KJ/BinaryTool
+git pull
+git add .
+git commit -m "BinaryTool daily $COMMIT"
+git push
+popd
+
+echo "=> Synchronize TensorWrapper"
+pushd /Users/kj/KJ/tw
+git pull
+git add .
+git commit -m "TensorWrapper daily $COMMIT"
+git push
+popd

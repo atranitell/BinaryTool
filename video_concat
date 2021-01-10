@@ -1,0 +1,46 @@
+#!/Users/kj/miniconda3/envs/dev/bin/python
+
+import os
+import sys
+import cv2
+import tqdm
+import numpy as np
+
+assert len(sys.argv) > 1
+assert len(sys.argv[1:-1]) > 1
+
+source = sys.argv[1:-1]
+video_path = sys.argv[-1]
+
+vidcaps = []
+for i, s in enumerate(source):
+  assert os.path.exists(s), s
+  cap = cv2.VideoCapture(s)
+  # if i == 0:
+  fps = cap.get(cv2.CAP_PROP_FPS)
+  width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+  height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+  count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+  # else:
+  #   # assert cap.get(cv2.CAP_PROP_FPS) == fps
+  #   assert cap.get(cv2.CAP_PROP_FRAME_WIDTH) == width
+  #   assert cap.get(cv2.CAP_PROP_FRAME_HEIGHT) == height
+  #   assert cap.get(cv2.CAP_PROP_FRAME_COUNT) == count
+  print('[INFO] loading video', s, fps, width, height, count)
+  vidcaps.append(cap)
+
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+out = cv2.VideoWriter(video_path, fourcc, int(fps), (int(width * len(vidcaps)), int(height)))
+
+for _ in tqdm.tqdm([i for i in range(int(count))]):
+  frames = []
+  for cap in vidcaps:
+    frame = cap.read()[1]
+    h, w, c = frame.shape
+    if h != height or w != width:
+      frame = cv2.resize(frame, (int(width), int(height)))
+    frames.append(frame)
+  render = np.concatenate(frames, axis=1)
+  out.write(render)
+
+out.release()

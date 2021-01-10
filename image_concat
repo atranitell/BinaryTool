@@ -1,0 +1,25 @@
+#!/Users/kj/miniconda3/envs/dev/bin/python
+
+import os
+import sys
+import cv2
+import tqdm
+import numpy as np
+
+assert len(sys.argv) > 1
+assert len(sys.argv[1:-1]) > 1
+
+images = sys.argv[1:-1]
+image_path = sys.argv[-1]
+
+print('=> tw.tool.image_concat: concat images.')
+print('=> src:', images)
+
+image_list = []
+for image in images:
+  img = cv2.imread(image)
+  image_list.append(img)
+image_list = np.concatenate(image_list, axis=1)
+output_path = 'image_concat.png' if image_path is None else image_path
+cv2.imwrite(image_path, image_list)
+print('=> dst:', image_path)

@@ -1,0 +1,130 @@
+#!/Users/kj/miniconda3/envs/dev/bin/python
+
+r"""YUV ToolBox
+
+  Author: Jin Kai
+  Update: 2020-11-25
+
+"""
+
+import os
+import sys
+import cv2
+import tqdm
+import numpy as np
+import argparse
+import tw
+
+
+class YUV:
+  r"""YUV format video.
+  """
+
+  def __init__(self, layout, color):
+    assert layout in ['420p', '444'], layout
+    assert color in ['bt709l'], color
+    self._format = layout
+    self._color = color
+
+  def reader(self):
+    pass
+
+  def writer(self):
+    pass
+
+
+def yuv_player(input, format, color, height, width, fps):
+  h, w, half_h, half_w = height, width, int(height/2), int(width/2)
+
+  with open(input, 'rb') as fp:
+    data = np.frombuffer(fp.read(), dtype='uint8')
+    frames = np.reshape(data, (-1, int(h * w * 1.5)))
+    for frame in frames:
+      frame = frame.astype('float32')
+      y = np.reshape(frame[: h * w], (h, w))
+      u = np.reshape(frame[h * w: int(h * w * 1.25)], (half_h, half_w))
+      v = np.reshape(frame[int(h * w * 1.25):], (half_h, half_w))
+      u = cv2.resize(u, dsize=(int(w), int(h)))
+      v = cv2.resize(v, dsize=(int(w), int(h)))
+      yuv = np.stack([y, u, v], axis=2)
+      bgr = tw.transform.kernel_bt709l_to_bgr(yuv).astype('uint8')
+      cv2.imshow('yuv_player', bgr)
+      cv2.waitKey(int(1000 / fps))
+
+
+def mp4_to_yuv(input, output, layout, color):
+  cap = cv2.VideoCapture(input)
+  fps = cap.get(cv2.CAP_PROP_FPS)
+  width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+  height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+  count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+
+  print('[INFO] input:', input)
+  print('[INFO] output:', output)
+  print('[INFO] format:', layout)
+  print('[INFO] color:', color)
+  print('[INFO] width:', width)
+  print('[INFO] height:', height)
+  print('[INFO] fps:', fps)
+  print('[INFO] count:', count)
+
+  fw = open(output, 'wb')
+  for _ in tqdm.tqdm([i for i in range(int(count))]):
+    succ, frame = cap.read()
+    yuv_frame = tw.transform.kernel_bgr_to_bt709l(frame).astype('uint8')
+    y, u, v = np.split(yuv_frame, 3, axis=2)
+    u = u[::2, ::2]
+    v = v[1::2, 1::2]
+    fw.write(np.reshape(y, -1).tobytes())
+    fw.write(np.reshape(u, -1).tobytes())
+    fw.write(np.reshape(v, -1).tobytes())
+  fw.close()
+  print(y.shape, u.shape, v.shape)
+
+
+def yuv_to_mp4(input, output, format, color, height, width, fps):
+  h, w, half_h, half_w = height, width, int(height/2), int(width/2)
+  fourcc = cv2.VideoWriter_fourcc(*'XVID')
+  print(fps)
+  out = cv2.VideoWriter(output, fourcc, int(fps), (int(w), int(h)))
+
+  with open(input, 'rb') as fp:
+    data = np.frombuffer(fp.read(), dtype='uint8')
+    frames = np.reshape(data, (-1, int(h * w * 1.5)))
+    for frame in tqdm.tqdm(frames):
+      frame = frame.astype('float32')
+      y = np.reshape(frame[: h * w], (h, w))
+      u = np.reshape(frame[h * w: int(h * w * 1.25)], (half_h, half_w))
+      v = np.reshape(frame[int(h * w * 1.25):], (half_h, half_w))
+      u = cv2.resize(u, dsize=(int(w), int(h)))
+      v = cv2.resize(v, dsize=(int(w), int(h)))
+      yuv = np.stack([y, u, v], axis=2)
+      bgr = tw.transform.kernel_bt709l_to_bgr(yuv).astype('uint8')
+      out.write(bgr)
+
+  out.release()
+
+
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser(description='yuv toolbox.')
+  parser.add_argument('--task', default='player', help='')  # nopep8
+  parser.add_argument('--input', default=None, help='input path')  # nopep8
+  parser.add_argument('--output', default=None, help='output path')  # nopep8
+  parser.add_argument('--format', default='420p', help='yuv format')  # nopep8
+  parser.add_argument('--color', default='bt709l', help='yuv colorspace')  # nopep8
+  parser.add_argument('--height', type=int, default=None, help='yuv height')  # nopep8
+  parser.add_argument('--width', type=int, default=None, help='yuv width')  # nopep8
+  parser.add_argument('--fps', type=int, default=30, help='yuv width')  # nopep8
+  args = parser.parse_args()
+
+  if args.task == 'player':
+    yuv_player(args.input, args.format, args.color, args.height, args.width, args.fps)  # nopep8
+
+  elif args.task == 'mp4_to_yuv':
+    mp4_to_yuv(args.input, args.output, args.format, args.color)  # nopep8
+
+  elif args.task == 'yuv_to_mp4':
+    yuv_to_mp4(args.input, args.output, args.format, args.color, args.height, args.width, args.fps)  # nopep8
+
+  else:
+    raise NotImplementedError(args.task)
