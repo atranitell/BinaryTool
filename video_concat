@@ -32,14 +32,21 @@ for i, s in enumerate(source):
 fourcc = cv2.VideoWriter_fourcc(*'XVID')
 out = cv2.VideoWriter(video_path, fourcc, int(fps), (int(width * len(vidcaps)), int(height)))
 
+
+ret = False
 for _ in tqdm.tqdm([i for i in range(int(count))]):
   frames = []
   for cap in vidcaps:
     frame = cap.read()[1]
+    if frame is None:
+      ret = True
+      break
     h, w, c = frame.shape
     if h != height or w != width:
       frame = cv2.resize(frame, (int(width), int(height)))
     frames.append(frame)
+  if ret:
+    break
   render = np.concatenate(frames, axis=1)
   out.write(render)
 
